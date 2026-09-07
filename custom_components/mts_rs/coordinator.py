@@ -9,7 +9,7 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.aiohttp_client import async_create_clientsession
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
@@ -41,7 +41,7 @@ class MtsDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]])
             update_interval=timedelta(seconds=scan_interval),
             config_entry=entry,
         )
-        self._session = async_get_clientsession(hass)
+        self._session = async_create_clientsession(hass)
         self._client = MtsApiClient(
             self._session,
             entry.data["username"],

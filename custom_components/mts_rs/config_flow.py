@@ -11,7 +11,7 @@ from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import selector
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.aiohttp_client import async_create_clientsession
 
 from .api import MtsApiClient, MtsApiError, MtsAuthError
 from .const import CONF_MSISDNS, CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL, DOMAIN
@@ -55,14 +55,15 @@ class MtsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             await self.async_set_unique_id(self._username)
             self._abort_if_unique_id_configured()
 
-            session = async_get_clientsession(self.hass)
+            session = async_create_clientsession(self.hass)
             client = MtsApiClient(session, self._username, self._password)
             try:
                 await client.login()
                 services = await client.get_mobile_services()
             except MtsAuthError:
                 errors["base"] = "invalid_auth"
-            except MtsApiError:
+            except MtsApiError as err:
+                _LOGGER.error("MTS RS setup failed: %s", err)
                 errors["base"] = "cannot_connect"
             else:
                 if not services:
@@ -137,7 +138,7 @@ class MtsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return self.async_abort(reason="unknown_entry")
 
         if user_input is not None:
-            session = async_get_clientsession(self.hass)
+            session = async_create_clientsession(self.hass)
             client = MtsApiClient(
                 session,
                 entry.data[CONF_USERNAME],
@@ -147,7 +148,8 @@ class MtsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 await client.login()
             except MtsAuthError:
                 errors["base"] = "invalid_auth"
-            except MtsApiError:
+            except MtsApiError as err:
+                _LOGGER.error("MTS RS reauth failed: %s", err)
                 errors["base"] = "cannot_connect"
             else:
                 self.hass.config_entries.async_update_entry(

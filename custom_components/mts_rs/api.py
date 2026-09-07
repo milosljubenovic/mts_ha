@@ -167,9 +167,20 @@ class MtsApiClient:
     def _url(self, path: str) -> str:
         return f"{BASE_URL}{path}"
 
-    def _request_headers(self, *, authenticated: bool = True) -> dict[str, str]:
+    def _request_headers(
+        self,
+        *,
+        authenticated: bool = True,
+        json_body: bool = False,
+    ) -> dict[str, str]:
         """Build per-request headers for HA's shared aiohttp session."""
-        headers = dict(DEFAULT_HEADERS)
+        headers = {
+            "Accept": "application/json, text/javascript, */*; q=0.01",
+            "language": "1",
+            "User-Agent": DEFAULT_HEADERS["User-Agent"],
+        }
+        if json_body:
+            headers["Content-Type"] = "application/json"
         if authenticated and self._token:
             headers["Authorization"] = f"Bearer {self._token}"
         return headers
@@ -190,7 +201,7 @@ class MtsApiClient:
                 url,
                 params=params,
                 json=json,
-                headers=self._request_headers(),
+                headers=self._request_headers(json_body=json is not None),
             ) as response:
                 if response.status in (
                     HTTPStatus.UNAUTHORIZED,
@@ -219,6 +230,9 @@ class MtsApiClient:
             if err.status in (HTTPStatus.UNAUTHORIZED, HTTPStatus.FORBIDDEN):
                 raise MtsAuthError(f"Authentication failed: {err.status}") from err
             raise MtsApiError(f"API request failed: {err.status} {err.message}") from err
+        except (aiohttp.ClientConnectorError, aiohttp.ServerTimeoutError) as err:
+            _LOGGER.error("MTS RS request failed for %s %s: %s", method, path, err)
+            raise MtsApiError(f"Connection failed: {err}") from err
 
     async def login(self) -> None:
         """Authenticate and obtain a bearer token."""
@@ -231,7 +245,7 @@ class MtsApiClient:
             async with self._session.post(
                 URL(self._url(ENDPOINTS["authorize"])),
                 json=payload,
-                headers=self._request_headers(authenticated=False),
+                headers=self._request_headers(authenticated=False, json_body=True),
             ) as response:
                 if response.status == HTTPStatus.BAD_REQUEST:
                     body = await response.text()
@@ -252,6 +266,9 @@ class MtsApiClient:
             if err.status in (HTTPStatus.UNAUTHORIZED, HTTPStatus.FORBIDDEN):
                 raise MtsAuthError("Invalid username or password") from err
             raise MtsApiError(f"Login failed: {err.status}") from err
+        except (aiohttp.ClientConnectorError, aiohttp.ServerTimeoutError) as err:
+            _LOGGER.error("MTS RS login request failed: %s", err)
+            raise MtsApiError(f"Connection failed: {err}") from err
 
         token = data.get("token")
         if not token:
