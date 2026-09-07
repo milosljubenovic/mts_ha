@@ -157,7 +157,6 @@ class MtsApiClient:
         token = data.get("token")
         if token:
             self._token = token
-            self._session.headers["Authorization"] = f"Bearer {token}"
 
     def dump_session(self) -> dict[str, Any]:
         """Serialize session state for persistence."""
@@ -167,6 +166,13 @@ class MtsApiClient:
 
     def _url(self, path: str) -> str:
         return f"{BASE_URL}{path}"
+
+    def _request_headers(self, *, authenticated: bool = True) -> dict[str, str]:
+        """Build per-request headers for HA's shared aiohttp session."""
+        headers = dict(DEFAULT_HEADERS)
+        if authenticated and self._token:
+            headers["Authorization"] = f"Bearer {self._token}"
+        return headers
 
     async def _request_json(
         self,
@@ -180,7 +186,11 @@ class MtsApiClient:
         url = URL(self._url(path))
         try:
             async with self._session.request(
-                method, url, params=params, json=json
+                method,
+                url,
+                params=params,
+                json=json,
+                headers=self._request_headers(),
             ) as response:
                 if response.status in (
                     HTTPStatus.UNAUTHORIZED,
@@ -221,6 +231,7 @@ class MtsApiClient:
             async with self._session.post(
                 URL(self._url(ENDPOINTS["authorize"])),
                 json=payload,
+                headers=self._request_headers(authenticated=False),
             ) as response:
                 if response.status == HTTPStatus.BAD_REQUEST:
                     body = await response.text()
@@ -229,7 +240,10 @@ class MtsApiClient:
                     raise MtsApiError(f"Login failed: {body}")
                 response.raise_for_status()
 
-            async with self._session.get(URL(self._url(ENDPOINTS["token"]))) as response:
+            async with self._session.get(
+                URL(self._url(ENDPOINTS["token"])),
+                headers=self._request_headers(authenticated=False),
+            ) as response:
                 if response.status == HTTPStatus.INTERNAL_SERVER_ERROR:
                     raise MtsAuthError("Session expired and re-login failed")
                 response.raise_for_status()
@@ -244,7 +258,6 @@ class MtsApiClient:
             raise MtsApiError("Login succeeded but no token was returned")
 
         self._token = token
-        self._session.headers["Authorization"] = f"Bearer {token}"
         _LOGGER.debug("MTS RS login successful")
 
     async def validate_session(self) -> bool:
