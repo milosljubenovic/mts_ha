@@ -1,0 +1,66 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "MTS RS login",
+        "description": "Enter your Moj mts username and password.",
+        "data": {
+          "username": "Username",
+          "password": "Password"
+        }
+      },
+      "msisdn": {
+        "title": "Select phone numbers",
+        "description": "Choose which mobile numbers you want to track.",
+        "data": {
+          "msisdns": "Phone numbers"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Reauthenticate",
+        "description": "Your MTS RS session expired. Enter your password again.",
+        "data": {
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid username or password.",
+      "cannot_connect": "Could not connect to moj.mts.rs.",
+      "no_services": "No mobile services were found on this account.",
+      "no_msisdns": "Select at least one phone number."
+    },
+    "abort": {
+      "reauth_successful": "Reauthentication successful."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "MTS RS options",
+        "data": {
+          "scan_interval": "Update interval (seconds)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "internet_remaining": {
+        "name": "Internet remaining"
+      },
+      "balance": {
+        "name": "Balance"
+      },
+      "package_name": {
+        "name": "Active package"
+      },
+      "package_end": {
+        "name": "Package valid until"
+      },
+      "internet_expires": {
+        "name": "Quota valid until"
+      }
+    }
+  }
+}
