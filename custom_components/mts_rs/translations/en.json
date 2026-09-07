@@ -10,10 +10,11 @@
         }
       },
       "msisdn": {
-        "title": "Select phone numbers",
-        "description": "Choose which mobile numbers you want to track.",
+        "title": "Configure MTS RS",
+        "description": "Choose which mobile numbers to track and how often to refresh.",
         "data": {
-          "msisdns": "Phone numbers"
+          "msisdns": "Phone numbers",
+          "scan_interval": "Update interval (seconds)"
         }
       },
       "reauth_confirm": {
@@ -52,6 +53,9 @@
       "balance": {
         "name": "Balance"
       },
+      "credit_expires": {
+        "name": "Credit valid until"
+      },
       "package_name": {
         "name": "Active package"
       },
@@ -60,6 +64,9 @@
       },
       "internet_expires": {
         "name": "Quota valid until"
+      },
+      "sim_expires": {
+        "name": "SIM valid until"
       }
     }
   }

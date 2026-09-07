@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -13,6 +13,7 @@ from homeassistant.components.sensor import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfInformation
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -47,6 +48,11 @@ SENSORS: tuple[SensorEntityDescription, ...] = (
         native_unit_of_measurement="RSD",
     ),
     SensorEntityDescription(
+        key="credit_expires",
+        translation_key="credit_expires",
+        device_class=SensorDeviceClass.DATE,
+    ),
+    SensorEntityDescription(
         key="package_name",
         translation_key="package_name",
     ),
@@ -60,17 +66,29 @@ SENSORS: tuple[SensorEntityDescription, ...] = (
         translation_key="internet_expires",
         device_class=SensorDeviceClass.DATE,
     ),
+    SensorEntityDescription(
+        key="sim_expires",
+        translation_key="sim_expires",
+        device_class=SensorDeviceClass.DATE,
+    ),
 )
 
+DATE_SENSOR_FIELDS = {
+    "credit_expires": "credit_expires",
+    "package_end": "package_end",
+    "internet_expires": "internet_expires",
+    "sim_expires": "sim_expires",
+}
 
-def _parse_mts_date(value: str | None) -> str | None:
-    """Convert MTS date formats to YYYY-MM-DD for HA date entities."""
+
+def _parse_mts_date(value: str | None) -> date | None:
+    """Convert MTS date formats to a date for HA date sensors."""
     if not value:
         return None
     cleaned = value.strip().rstrip(".")
     for fmt in ("%Y-%m-%d", "%d.%m.%Y"):
         try:
-            return datetime.strptime(cleaned, fmt).date().isoformat()
+            return datetime.strptime(cleaned, fmt).date()
         except ValueError:
             continue
     return None
@@ -92,8 +110,8 @@ async def async_setup_entry(
 class MtsSensor(CoordinatorEntity[MtsDataUpdateCoordinator], SensorEntity):
     """Representation of an MTS RS sensor."""
 
+    _attr_has_entity_name = True
     entity_description: SensorEntityDescription
-    _msisdn: str
 
     def __init__(
         self,
@@ -105,33 +123,30 @@ class MtsSensor(CoordinatorEntity[MtsDataUpdateCoordinator], SensorEntity):
         super().__init__(coordinator)
         self.entity_description = description
         self._msisdn = msisdn
+        self._entry_id = entry.entry_id
         self._attr_unique_id = f"{entry.entry_id}_{msisdn}_{description.key}"
-        self._attr_device_info = {
-            "identifiers": {(DOMAIN, entry.entry_id, msisdn)},
-            "name": f"MTS {msisdn}",
-            "manufacturer": "MTS RS",
-            "model": "Mobile prepaid",
-        }
-        self._attr_translation_key = description.translation_key
 
     @property
     def _report(self) -> dict:
         return self.coordinator.data.get(self._msisdn, {})
 
     @property
-    def native_value(self) -> str | float | None:
+    def device_info(self) -> DeviceInfo:
+        report = self._report
+        name = report.get("msisdn_formatted") or self._msisdn
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._entry_id, self._msisdn)},
+            name=str(name),
+            manufacturer="MTS RS",
+            model="Mobile prepaid",
+        )
+
+    @property
+    def native_value(self) -> str | float | date | None:
         key = self.entity_description.key
-        if key == "internet_remaining":
-            return self._report.get("internet_remaining")
-        if key == "balance":
-            return self._report.get("balance")
-        if key == "package_name":
-            return self._report.get("package_name")
-        if key == "package_end":
-            return _parse_mts_date(self._report.get("package_end"))
-        if key == "internet_expires":
-            return _parse_mts_date(self._report.get("internet_expires"))
-        return None
+        if key in DATE_SENSOR_FIELDS:
+            return _parse_mts_date(self._report.get(DATE_SENSOR_FIELDS[key]))
+        return self._report.get(key)
 
     @property
     def extra_state_attributes(self) -> dict:

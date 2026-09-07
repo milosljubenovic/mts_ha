@@ -10,7 +10,7 @@ from homeassistant import config_entries
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
-from homeassistant.helpers import selector
+from homeassistant.helpers.selector import selector
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 
 from .api import MtsApiClient, MtsApiError, MtsAuthError
@@ -100,19 +100,33 @@ class MtsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_PASSWORD: self._password,
                         CONF_MSISDNS: msisdns,
                     },
-                    options={CONF_SCAN_INTERVAL: DEFAULT_SCAN_INTERVAL},
+                    options={
+                        CONF_SCAN_INTERVAL: int(user_input[CONF_SCAN_INTERVAL]),
+                    },
                 )
 
         schema = vol.Schema(
             {
-                vol.Required(CONF_MSISDNS): selector.selector(
+                vol.Required(CONF_MSISDNS): selector(
                     {
-                        "selector": {
-                            "select": {
-                                "options": self._discovered_msisdns,
-                                "multiple": True,
-                                "mode": "list",
-                            }
+                        "select": {
+                            "options": self._discovered_msisdns,
+                            "multiple": True,
+                            "mode": "list",
+                        }
+                    }
+                ),
+                vol.Required(
+                    CONF_SCAN_INTERVAL,
+                    default=DEFAULT_SCAN_INTERVAL,
+                ): selector(
+                    {
+                        "number": {
+                            "min": 60,
+                            "max": 86400,
+                            "step": 60,
+                            "mode": "box",
+                            "unit_of_measurement": "s",
                         }
                     }
                 ),
