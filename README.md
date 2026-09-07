@@ -23,13 +23,24 @@ Each sensor also exposes detailed attributes such as formatted balance, all acti
 
 ## HACS installation
 
-1. Add this repository as a custom HACS repository
-2. Install **MTS RS** from HACS integrations
-3. Restart Home Assistant
-4. Go to **Settings → Devices & services → Add integration**
-5. Search for **MTS RS**
-6. Login with your Moj mts username and password
-7. Select the phone numbers you want to track
+1. In HACS, go to **Integrations** → **⋮** → **Custom repositories**
+2. Add `https://github.com/milosljubenovic/mts_ha` (category: **Integration**)
+3. Open **MTS RS** in HACS and click **Download**
+4. If HACS shows a version selector, choose the latest **release** (for example `v1.0.2`), not a commit hash
+5. Restart Home Assistant
+6. Go to **Settings → Devices & services → Add integration**
+7. Search for **MTS RS**
+8. Login with your Moj mts username and password
+9. Select the phone numbers you want to track
+
+### HACS download failed with 404?
+
+HACS sometimes tries to download a commit hash as a branch, which GitHub rejects. To fix it:
+
+1. In HACS, remove **MTS RS** if it is already listed
+2. Remove the custom repository entry, then add it again
+3. Download again and pick the latest **release** version from the dropdown
+4. If it still fails, use [manual installation](#manual-installation) below
 
 ## Manual installation
 
