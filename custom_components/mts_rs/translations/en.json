@@ -67,6 +67,14 @@
       },
       "sim_expires": {
         "name": "SIM valid until"
+      },
+      "last_updated_at": {
+        "name": "Last updated"
+      }
+    },
+    "button": {
+      "refresh": {
+        "name": "Refresh"
       }
     }
   }

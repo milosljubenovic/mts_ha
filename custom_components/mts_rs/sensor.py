@@ -11,7 +11,7 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfInformation
+from homeassistant.const import EntityCategory, UnitOfInformation
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -70,6 +70,12 @@ SENSORS: tuple[SensorEntityDescription, ...] = (
         key="sim_expires",
         translation_key="sim_expires",
         device_class=SensorDeviceClass.DATE,
+    ),
+    SensorEntityDescription(
+        key="last_updated_at",
+        translation_key="last_updated_at",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
 )
 
@@ -142,14 +148,18 @@ class MtsSensor(CoordinatorEntity[MtsDataUpdateCoordinator], SensorEntity):
         )
 
     @property
-    def native_value(self) -> str | float | date | None:
+    def native_value(self) -> str | float | date | datetime | None:
         key = self.entity_description.key
+        if key == "last_updated_at":
+            return self.coordinator.last_update_success_time
         if key in DATE_SENSOR_FIELDS:
             return _parse_mts_date(self._report.get(DATE_SENSOR_FIELDS[key]))
         return self._report.get(key)
 
     @property
     def extra_state_attributes(self) -> dict:
+        if self.entity_description.key == "last_updated_at":
+            return {}
         report = self._report
         return {
             ATTR_MSISDN: report.get("msisdn"),

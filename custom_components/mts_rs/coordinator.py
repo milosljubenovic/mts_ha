@@ -11,7 +11,10 @@ from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.helpers.update_coordinator import (
+    TimestampDataUpdateCoordinator,
+    UpdateFailed,
+)
 
 from .api import MtsApiClient, MtsApiError, MtsAuthError
 from .const import CONF_MSISDNS, CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL, DOMAIN
@@ -19,7 +22,9 @@ from .const import CONF_MSISDNS, CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL, DOMA
 _LOGGER = logging.getLogger(__name__)
 
 
-class MtsDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
+class MtsDataUpdateCoordinator(
+    TimestampDataUpdateCoordinator[dict[str, dict[str, Any]]]
+):
     """Fetch MTS RS data for all configured phone numbers."""
 
     config_entry: ConfigEntry

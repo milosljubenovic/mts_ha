@@ -7,7 +7,7 @@ CONF_SCAN_INTERVAL = "scan_interval"
 
 DEFAULT_SCAN_INTERVAL = 3600
 
-PLATFORMS = ["sensor"]
+PLATFORMS = ["sensor", "button"]
 
 ATTR_MSISDN = "msisdn"
 ATTR_MSISDN_FORMATTED = "msisdn_formatted"

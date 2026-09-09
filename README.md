@@ -17,6 +17,8 @@ Home Assistant custom integration for tracking Moj mts prepaid internet quota, a
 - Active package name
 - Package valid until
 - Quota valid until
+- Last updated (timestamp)
+- Refresh button (on-demand update)
 
 Each sensor also exposes detailed attributes such as formatted balance, all active packages, and bonus quota entries.
 
