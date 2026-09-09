@@ -35,6 +35,14 @@
       "reauth_successful": "Reauthentication successful."
     }
   },
+  "exceptions": {
+    "refresh_failed": {
+      "message": "Could not refresh MTS RS data."
+    },
+    "refresh_failed_auth": {
+      "message": "Authentication failed while refreshing MTS RS data."
+    }
+  },
   "options": {
     "step": {
       "init": {

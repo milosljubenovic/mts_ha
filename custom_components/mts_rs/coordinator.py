@@ -10,6 +10,8 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
+from aiohttp import CookieJar
+
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 from homeassistant.helpers.update_coordinator import (
     TimestampDataUpdateCoordinator,
@@ -39,7 +41,10 @@ class MtsDataUpdateCoordinator(
             update_interval=timedelta(seconds=scan_interval),
             config_entry=entry,
         )
-        self._session = async_create_clientsession(hass)
+        self._session = async_create_clientsession(
+            hass,
+            cookie_jar=CookieJar(unsafe=True),
+        )
         self._client = MtsApiClient(
             self._session,
             entry.data[CONF_USERNAME],
@@ -60,7 +65,7 @@ class MtsDataUpdateCoordinator(
         except MtsAuthError as err:
             raise ConfigEntryAuthFailed(str(err)) from err
         except MtsApiError as err:
-            raise UpdateFailed(str(err)) from err
+            raise UpdateFailed(str(err), retry_after=err.retry_after) from err
 
     def set_update_interval(self, seconds: int) -> None:
         """Apply a new polling interval from options."""

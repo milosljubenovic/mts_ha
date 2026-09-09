@@ -32,6 +32,7 @@ from .const import (
     DOMAIN,
 )
 from .coordinator import MtsDataUpdateCoordinator
+from .device import get_msisdn_device_info
 
 SENSORS: tuple[SensorEntityDescription, ...] = (
     SensorEntityDescription(
@@ -138,14 +139,7 @@ class MtsSensor(CoordinatorEntity[MtsDataUpdateCoordinator], SensorEntity):
 
     @property
     def device_info(self) -> DeviceInfo:
-        report = self._report
-        name = report.get("msisdn_formatted") or self._msisdn
-        return DeviceInfo(
-            identifiers={(DOMAIN, self._entry_id, self._msisdn)},
-            name=str(name),
-            manufacturer="MTS RS",
-            model="Mobile prepaid",
-        )
+        return get_msisdn_device_info(self._entry_id, self._msisdn, self._report)
 
     @property
     def native_value(self) -> str | float | date | datetime | None:

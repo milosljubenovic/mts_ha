@@ -5,7 +5,7 @@ from __future__ import annotations
 import base64
 import logging
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from http import HTTPStatus
 from typing import Any
 
@@ -54,6 +54,12 @@ class MtsAuthError(Exception):
 
 class MtsApiError(Exception):
     """Raised for other API failures."""
+
+    def __init__(
+        self, message: str, *, retry_after: float | None = None
+    ) -> None:
+        super().__init__(message)
+        self.retry_after = retry_after
 
 
 def encode_password(password: str) -> str:
@@ -205,13 +211,19 @@ class MtsApiClient:
             _LOGGER.error("MTS RS request failed for %s %s: %s", method, path, err)
             raise MtsApiError(f"Connection failed: {err}") from err
 
+    def _reset_session_state(self) -> None:
+        """Clear auth state before starting a new portal session."""
+        self._token = None
+        with suppress(AttributeError):
+            self._session.cookie_jar.clear()
+
     async def login(self) -> None:
         """Authenticate and obtain a bearer token."""
-        self._token = None
+        self._reset_session_state()
         payload = {
             "userId": self._username,
             "encodedPassword": encode_password(self._password),
-            "rememberMe": False,
+            "rememberMe": True,
         }
         try:
             async with self._session.post(
@@ -223,6 +235,11 @@ class MtsApiClient:
                     body = await response.text()
                     if "MtsBadCredentialsError" in body:
                         raise MtsAuthError("Invalid username or password")
+                    if "nedostupan" in body.lower():
+                        raise MtsApiError(
+                            "MTS service is temporarily unavailable. Try again later.",
+                            retry_after=300,
+                        )
                     raise MtsApiError(f"Login failed: {body}")
                 response.raise_for_status()
 
@@ -263,7 +280,7 @@ class MtsApiClient:
         except (aiohttp.ClientError, TimeoutError) as err:
             _LOGGER.debug("MTS RS logout failed (ignored): %s", err)
         finally:
-            self._token = None
+            self._reset_session_state()
 
     @asynccontextmanager
     async def authenticated(self) -> AsyncIterator[MtsApiClient]:
