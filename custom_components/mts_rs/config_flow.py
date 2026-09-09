@@ -58,8 +58,7 @@ class MtsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             session = async_create_clientsession(self.hass)
             client = MtsApiClient(session, self._username, self._password)
             try:
-                await client.login()
-                services = await client.get_mobile_services()
+                services = await client.fetch_mobile_services()
             except MtsAuthError:
                 errors["base"] = "invalid_auth"
             except MtsApiError as err:
@@ -159,7 +158,8 @@ class MtsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 user_input[CONF_PASSWORD],
             )
             try:
-                await client.login()
+                async with client.authenticated():
+                    pass
             except MtsAuthError:
                 errors["base"] = "invalid_auth"
             except MtsApiError as err:
@@ -204,6 +204,12 @@ class MtsOptionsFlowHandler(config_entries.OptionsFlow):
         )
         return self.async_show_form(
             step_id="init",
-            data_schema=OPTIONS_SCHEMA,
-            data={CONF_SCAN_INTERVAL: current},
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_SCAN_INTERVAL,
+                        default=current,
+                    ): vol.All(vol.Coerce(int), vol.Range(min=60, max=86400)),
+                }
+            ),
         )

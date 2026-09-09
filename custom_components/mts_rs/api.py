@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import base64
 import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from http import HTTPStatus
 from typing import Any
 
@@ -18,6 +20,7 @@ BASE_URL = "https://moj.mts.rs"
 ENDPOINTS = {
     "authorize": "/selfcare/b2c/user/authorize",
     "token": "/selfcare/b2c/auth/token",
+    "logout": "/selfcare/b2c/user/logout",
     "user": "/hybris/mtscommercewebservices/v2/mtsB2CSelfcare/users/current",
     "services": (
         "/hybris/mtscommercewebservices/v2/mtsB2CSelfcare/"
@@ -131,7 +134,7 @@ def build_msisdn_report(
 
 
 class MtsApiClient:
-    """Async client for moj.mts.rs with reusable session state."""
+    """Async client for moj.mts.rs using short-lived login sessions."""
 
     def __init__(
         self,
@@ -145,24 +148,14 @@ class MtsApiClient:
         self._token: str | None = None
 
     @property
-    def token(self) -> str | None:
-        return self._token
-
-    @property
     def username(self) -> str:
         return self._username
 
-    def load_session(self, data: dict[str, Any]) -> None:
-        """Restore bearer token from persisted storage."""
-        token = data.get("token")
-        if token:
-            self._token = token
-
-    def dump_session(self) -> dict[str, Any]:
-        """Serialize session state for persistence."""
-        return {
-            "token": self._token,
-        }
+    def set_credentials(self, username: str, password: str) -> None:
+        """Update credentials used for the next login."""
+        self._username = username
+        self._password = password
+        self._token = None
 
     def _url(self, path: str) -> str:
         return f"{BASE_URL}{path}"
@@ -192,7 +185,6 @@ class MtsApiClient:
         *,
         params: dict[str, Any] | None = None,
         json: dict[str, Any] | None = None,
-        auth_retry: bool = True,
     ) -> Any:
         url = URL(self._url(path))
         try:
@@ -203,30 +195,9 @@ class MtsApiClient:
                 json=json,
                 headers=self._request_headers(json_body=json is not None),
             ) as response:
-                if response.status in (
-                    HTTPStatus.UNAUTHORIZED,
-                    HTTPStatus.FORBIDDEN,
-                ) and auth_retry:
-                    await self.login()
-                    return await self._request_json(
-                        method,
-                        path,
-                        params=params,
-                        json=json,
-                        auth_retry=False,
-                    )
                 response.raise_for_status()
                 return await response.json()
         except ClientResponseError as err:
-            if err.status == HTTPStatus.BAD_REQUEST and auth_retry:
-                await self.login()
-                return await self._request_json(
-                    method,
-                    path,
-                    params=params,
-                    json=json,
-                    auth_retry=False,
-                )
             if err.status in (HTTPStatus.UNAUTHORIZED, HTTPStatus.FORBIDDEN):
                 raise MtsAuthError(f"Authentication failed: {err.status}") from err
             raise MtsApiError(f"API request failed: {err.status} {err.message}") from err
@@ -236,10 +207,11 @@ class MtsApiClient:
 
     async def login(self) -> None:
         """Authenticate and obtain a bearer token."""
+        self._token = None
         payload = {
             "userId": self._username,
             "encodedPassword": encode_password(self._password),
-            "rememberMe": True,
+            "rememberMe": False,
         }
         try:
             async with self._session.post(
@@ -277,29 +249,45 @@ class MtsApiClient:
         self._token = token
         _LOGGER.debug("MTS RS login successful")
 
-    async def validate_session(self) -> bool:
-        """Return True when the current session can access account data."""
+    async def logout(self) -> None:
+        """End the current portal session."""
         if not self._token:
-            return False
-        try:
-            await self._request_json("GET", ENDPOINTS["user"], auth_retry=False)
-            return True
-        except (MtsAuthError, MtsApiError):
-            return False
-
-    async def ensure_logged_in(self) -> None:
-        """Reuse an active session or perform a fresh login."""
-        if await self.validate_session():
-            _LOGGER.debug("Reusing existing MTS RS session")
             return
+        try:
+            async with self._session.post(
+                URL(self._url(ENDPOINTS["logout"])),
+                headers=self._request_headers(),
+            ) as response:
+                if response.status >= HTTPStatus.BAD_REQUEST:
+                    _LOGGER.debug("MTS RS logout returned status %s", response.status)
+        except (aiohttp.ClientError, TimeoutError) as err:
+            _LOGGER.debug("MTS RS logout failed (ignored): %s", err)
+        finally:
+            self._token = None
+
+    @asynccontextmanager
+    async def authenticated(self) -> AsyncIterator[MtsApiClient]:
+        """Log in, yield the client, then log out."""
         await self.login()
+        try:
+            yield self
+        finally:
+            await self.logout()
 
-    async def get_user(self) -> dict[str, Any]:
-        await self.ensure_logged_in()
-        return await self._request_json("GET", ENDPOINTS["user"])
+    async def fetch_mobile_services(self) -> list[dict[str, Any]]:
+        """Log in, discover mobile services, and log out."""
+        async with self.authenticated():
+            return await self._get_mobile_services()
 
-    async def get_mobile_services(self) -> list[dict[str, Any]]:
-        await self.ensure_logged_in()
+    async def fetch_reports(self, msisdns: list[str]) -> dict[str, dict[str, Any]]:
+        """Log in, fetch all configured numbers, and log out."""
+        async with self.authenticated():
+            reports: dict[str, dict[str, Any]] = {}
+            for msisdn in msisdns:
+                reports[msisdn] = await self._get_msisdn_report(msisdn)
+            return reports
+
+    async def _get_mobile_services(self) -> list[dict[str, Any]]:
         data = await self._request_json("GET", ENDPOINTS["services"])
         services: list[dict[str, Any]] = []
         for group in data.get("serviceGroups", []):
@@ -310,8 +298,7 @@ class MtsApiClient:
                     services.append(service)
         return services
 
-    async def get_msisdn_report(self, msisdn: str) -> dict[str, Any]:
-        await self.ensure_logged_in()
+    async def _get_msisdn_report(self, msisdn: str) -> dict[str, Any]:
         details = await self._request_json(
             "GET",
             ENDPOINTS["mobile_details"],
@@ -323,9 +310,3 @@ class MtsApiClient:
             params={"msisdn": msisdn},
         )
         return build_msisdn_report(msisdn, details, addons)
-
-    async def get_reports(self, msisdns: list[str]) -> dict[str, dict[str, Any]]:
-        reports: dict[str, dict[str, Any]] = {}
-        for msisdn in msisdns:
-            reports[msisdn] = await self.get_msisdn_report(msisdn)
-        return reports

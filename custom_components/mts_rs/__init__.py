@@ -46,6 +46,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Reload entry when options change."""
+    if entry.entry_id not in hass.data.get(DOMAIN, {}):
+        return
     coordinator: MtsDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
     scan_interval = entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
     coordinator.set_update_interval(scan_interval)

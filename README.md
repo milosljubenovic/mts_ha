@@ -7,8 +7,7 @@ Home Assistant custom integration for tracking Moj mts prepaid internet quota, a
 - Config Flow setup with username/password login
 - Automatic discovery of phone numbers on your account
 - Track multiple MSISDNs from one account
-- Session persistence across Home Assistant restarts
-- Reuses an active session when possible, otherwise logs in again
+- Uses short-lived portal sessions (login, fetch data, logout) on each update
 - Configurable polling interval (default: 3600 seconds)
 
 ## Sensors per phone number

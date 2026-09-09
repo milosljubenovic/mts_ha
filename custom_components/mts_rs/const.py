@@ -7,9 +7,6 @@ CONF_SCAN_INTERVAL = "scan_interval"
 
 DEFAULT_SCAN_INTERVAL = 3600
 
-STORAGE_VERSION = 1
-STORAGE_KEY = "mts_rs_session"
-
 PLATFORMS = ["sensor"]
 
 ATTR_MSISDN = "msisdn"
